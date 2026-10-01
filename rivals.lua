@@ -1,7 +1,7 @@
 --[[
-    Zelbro v7 — Rivals
-    Real Executor | Black & White
-    Client Skin Spoof + TeamCheck Fix + Lobby Filter
+    Zelbro v8 — Rivals
+    Real Executor | Cyberpunk Neon GUI
+    Stable Aimbot + Improved ESP + Client Skin Spoof
 ]]
 
 local Players = game:GetService("Players")
@@ -9,8 +9,8 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
@@ -19,12 +19,12 @@ local Config = {
     Aimbot = {
         Enabled = false,
         FOV = 130,
-        Smooth = 0.35,
+        Smooth = 0.28,
         TeamCheck = true,
         WallCheck = true,
         Target = "Head",
         ShowFOV = true,
-        MaxDistance = 400,
+        MaxDistance = 420,
     },
     ESP = {
         Enabled = false,
@@ -35,7 +35,7 @@ local Config = {
         Health = true,
         Name = true,
         Tracer = false,
-        Color = Color3.fromRGB(255, 255, 255),
+        Color = Color3.fromRGB(0, 255, 255),
     },
     Skin = {
         Enabled = false,
@@ -110,9 +110,7 @@ local function getTarget()
             local part = getPart(plr.Character)
             if part and visible(part) then
                 local dist3D = (part.Position - myRoot.Position).Magnitude
-                if dist3D > Config.Aimbot.MaxDistance then
-                    continue
-                end
+                if dist3D > Config.Aimbot.MaxDistance then continue end
 
                 local sp, on = worldToScreen(part.Position)
                 if on then
@@ -134,8 +132,8 @@ FOVCircle.Thickness = 1.5
 FOVCircle.NumSides = 64
 FOVCircle.Radius = Config.Aimbot.FOV
 FOVCircle.Filled = false
-FOVCircle.Color = Color3.fromRGB(255, 255, 255)
-FOVCircle.Transparency = 0.7
+FOVCircle.Color = Color3.fromRGB(0, 255, 255)
+FOVCircle.Transparency = 0.65
 FOVCircle.Visible = false
 
 -- ===================== ESP =====================
@@ -174,7 +172,7 @@ local function createESP(plr)
 
     local hpBg = Drawing.new("Line")
     hpBg.Thickness = 2
-    hpBg.Color = Color3.fromRGB(40, 40, 40)
+    hpBg.Color = Color3.fromRGB(30, 30, 40)
     hpBg.Visible = false
 
     local tracer = Drawing.new("Line")
@@ -273,7 +271,7 @@ local function updateESP()
             obj.hpBg.Visible = true
             obj.hpBar.From = Vector2.new(barX, footPos.Y)
             obj.hpBar.To = Vector2.new(barX, footPos.Y - height * hp)
-            obj.hpBar.Color = Color3.fromRGB(255, math.floor(80 + 175 * hp), math.floor(80 * hp))
+            obj.hpBar.Color = Color3.fromRGB(0, math.floor(100 + 155 * hp), 255)
             obj.hpBar.Visible = true
         else
             obj.hpBar.Visible = false
@@ -326,14 +324,13 @@ local function aim()
     local target = getTarget()
     if not target then return end
     local look = CFrame.lookAt(Camera.CFrame.Position, target.Position)
-    local s = math.clamp(Config.Aimbot.Smooth, 0.12, 1)
+    local s = math.clamp(Config.Aimbot.Smooth, 0.15, 1)
     Camera.CFrame = Camera.CFrame:Lerp(look, s)
 end
 
 -- ===================== CLIENT SKIN SPOOF =====================
 local function applyClientSkin()
     if not Config.Skin.Enabled then return end
-
     local char = LocalPlayer.Character
     if not char then return end
 
@@ -341,9 +338,7 @@ local function applyClientSkin()
         if v:IsA("StringValue") then
             local n = v.Name:lower()
             if n:find("skin") or n:find("wrap") or n:find("cosmetic") or n:find("finish") then
-                pcall(function()
-                    v.Value = Config.Skin.Name
-                end)
+                pcall(function() v.Value = Config.Skin.Name end)
             end
         end
     end
@@ -365,9 +360,7 @@ end
 local originalSky = nil
 local function setSkybox(on)
     if on then
-        if not originalSky then
-            originalSky = Lighting:FindFirstChildOfClass("Sky")
-        end
+        if not originalSky then originalSky = Lighting:FindFirstChildOfClass("Sky") end
         local sky = Instance.new("Sky")
         sky.SkyboxBk = "rbxassetid://159454299"
         sky.SkyboxDn = "rbxassetid://159454296"
@@ -384,7 +377,7 @@ local function setSkybox(on)
     end
 end
 
--- ===================== GUI =====================
+-- ===================== CYBERPUNK GUI =====================
 local SG = Instance.new("ScreenGui")
 SG.Name = "Zelbro"
 SG.ResetOnSpawn = false
@@ -393,60 +386,67 @@ pcall(function() SG.Parent = CoreGui end)
 if not SG.Parent then SG.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 
 local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 380, 0, 440)
-Main.Position = UDim2.new(0.5, -190, 0.5, -220)
-Main.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+Main.Size = UDim2.new(0, 420, 0, 460)
+Main.Position = UDim2.new(0.5, -210, 0.5, -230)
+Main.BackgroundColor3 = Color3.fromRGB(8, 8, 14)
+Main.BackgroundTransparency = 0.15
 Main.BorderSizePixel = 0
 Main.Active = true
 Main.Draggable = true
 Main.Parent = SG
 
 local mc = Instance.new("UICorner")
-mc.CornerRadius = UDim.new(0, 6)
+mc.CornerRadius = UDim.new(0, 10)
 mc.Parent = Main
 
 local ms = Instance.new("UIStroke")
-ms.Color = Color3.fromRGB(255, 255, 255)
-ms.Thickness = 1
-ms.Transparency = 0.7
+ms.Color = Color3.fromRGB(0, 220, 255)
+ms.Thickness = 1.5
 ms.Parent = Main
 
+-- 네온 그라데이션 느낌
+local accent = Instance.new("Frame")
+accent.Size = UDim2.new(1, 0, 0, 3)
+accent.BackgroundColor3 = Color3.fromRGB(180, 0, 255)
+accent.BorderSizePixel = 0
+accent.Parent = Main
+
 local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1, 0, 0, 32)
-Header.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+Header.Size = UDim2.new(1, 0, 0, 36)
+Header.BackgroundColor3 = Color3.fromRGB(12, 12, 20)
 Header.BorderSizePixel = 0
 Header.Parent = Main
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -16, 1, 0)
-Title.Position = UDim2.new(0, 12, 0, 0)
+Title.Size = UDim2.new(1, -20, 1, 0)
+Title.Position = UDim2.new(0, 14, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "ZELBRO"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.TextSize = 14
+Title.Text = "ZELBRO  //  v8"
+Title.TextColor3 = Color3.fromRGB(0, 255, 255)
+Title.TextSize = 16
 Title.Font = Enum.Font.Code
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Header
 
 local TabBar = Instance.new("Frame")
-TabBar.Size = UDim2.new(1, 0, 0, 26)
-TabBar.Position = UDim2.new(0, 0, 0, 32)
-TabBar.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+TabBar.Size = UDim2.new(1, 0, 0, 28)
+TabBar.Position = UDim2.new(0, 0, 0, 36)
+TabBar.BackgroundColor3 = Color3.fromRGB(10, 10, 18)
 TabBar.BorderSizePixel = 0
 TabBar.Parent = Main
 
 local Content = Instance.new("ScrollingFrame")
-Content.Size = UDim2.new(1, -12, 1, -68)
-Content.Position = UDim2.new(0, 6, 0, 62)
+Content.Size = UDim2.new(1, -16, 1, -74)
+Content.Position = UDim2.new(0, 8, 0, 68)
 Content.BackgroundTransparency = 1
 Content.BorderSizePixel = 0
-Content.ScrollBarThickness = 2
-Content.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
-Content.CanvasSize = UDim2.new(0, 0, 0, 560)
+Content.ScrollBarThickness = 3
+Content.ScrollBarImageColor3 = Color3.fromRGB(0, 220, 255)
+Content.CanvasSize = UDim2.new(0, 0, 0, 580)
 Content.Parent = Main
 
 local UIList = Instance.new("UIListLayout")
-UIList.Padding = UDim.new(0, 4)
+UIList.Padding = UDim.new(0, 5)
 UIList.Parent = Content
 
 local tabBtns = {}
@@ -459,79 +459,79 @@ end
 
 local function toggle(name, default, cb)
     local f = Instance.new("Frame")
-    f.Size = UDim2.new(1, 0, 0, 26)
-    f.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    f.Size = UDim2.new(1, 0, 0, 28)
+    f.BackgroundColor3 = Color3.fromRGB(16, 16, 26)
     f.BorderSizePixel = 0
     f.Parent = Content
     local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, 3)
+    c.CornerRadius = UDim.new(0, 5)
     c.Parent = f
 
     local l = Instance.new("TextLabel")
-    l.Size = UDim2.new(1, -50, 1, 0)
-    l.Position = UDim2.new(0, 10, 0, 0)
+    l.Size = UDim2.new(1, -55, 1, 0)
+    l.Position = UDim2.new(0, 12, 0, 0)
     l.BackgroundTransparency = 1
     l.Text = name
-    l.TextColor3 = Color3.fromRGB(220, 220, 220)
-    l.TextSize = 12
+    l.TextColor3 = Color3.fromRGB(200, 220, 255)
+    l.TextSize = 13
     l.Font = Enum.Font.Code
     l.TextXAlignment = Enum.TextXAlignment.Left
     l.Parent = f
 
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, 38, 0, 18)
-    b.Position = UDim2.new(1, -46, 0.5, -9)
-    b.BackgroundColor3 = default and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(40, 40, 40)
+    b.Size = UDim2.new(0, 42, 0, 20)
+    b.Position = UDim2.new(1, -50, 0.5, -10)
+    b.BackgroundColor3 = default and Color3.fromRGB(0, 255, 200) or Color3.fromRGB(40, 40, 55)
     b.Text = default and "ON" or "OFF"
-    b.TextColor3 = default and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(200, 200, 200)
-    b.TextSize = 10
+    b.TextColor3 = default and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(180, 180, 200)
+    b.TextSize = 11
     b.Font = Enum.Font.Code
     b.Parent = f
     local bc = Instance.new("UICorner")
-    bc.CornerRadius = UDim.new(0, 2)
+    bc.CornerRadius = UDim.new(0, 4)
     bc.Parent = b
 
     local on = default
     b.MouseButton1Click:Connect(function()
         on = not on
         b.Text = on and "ON" or "OFF"
-        b.BackgroundColor3 = on and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(40, 40, 40)
-        b.TextColor3 = on and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(200, 200, 200)
+        b.BackgroundColor3 = on and Color3.fromRGB(0, 255, 200) or Color3.fromRGB(40, 40, 55)
+        b.TextColor3 = on and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(180, 180, 200)
         cb(on)
     end)
 end
 
 local function slider(name, min, max, default, cb)
     local f = Instance.new("Frame")
-    f.Size = UDim2.new(1, 0, 0, 40)
-    f.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    f.Size = UDim2.new(1, 0, 0, 42)
+    f.BackgroundColor3 = Color3.fromRGB(16, 16, 26)
     f.BorderSizePixel = 0
     f.Parent = Content
     local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, 3)
+    c.CornerRadius = UDim.new(0, 5)
     c.Parent = f
 
     local l = Instance.new("TextLabel")
-    l.Size = UDim2.new(1, -16, 0, 16)
-    l.Position = UDim2.new(0, 10, 0, 3)
+    l.Size = UDim2.new(1, -16, 0, 18)
+    l.Position = UDim2.new(0, 12, 0, 4)
     l.BackgroundTransparency = 1
     l.Text = name .. ": " .. tostring(default)
-    l.TextColor3 = Color3.fromRGB(220, 220, 220)
-    l.TextSize = 11
+    l.TextColor3 = Color3.fromRGB(200, 220, 255)
+    l.TextSize = 12
     l.Font = Enum.Font.Code
     l.TextXAlignment = Enum.TextXAlignment.Left
     l.Parent = f
 
     local bar = Instance.new("Frame")
-    bar.Size = UDim2.new(1, -20, 0, 5)
-    bar.Position = UDim2.new(0, 10, 0, 26)
-    bar.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    bar.Size = UDim2.new(1, -24, 0, 6)
+    bar.Position = UDim2.new(0, 12, 0, 28)
+    bar.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
     bar.BorderSizePixel = 0
     bar.Parent = f
 
     local fill = Instance.new("Frame")
     fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
-    fill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    fill.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
     fill.BorderSizePixel = 0
     fill.Parent = bar
 
@@ -557,21 +557,21 @@ end
 
 local function dropdown(name, options, default, cb)
     local f = Instance.new("Frame")
-    f.Size = UDim2.new(1, 0, 0, 26)
-    f.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    f.Size = UDim2.new(1, 0, 0, 28)
+    f.BackgroundColor3 = Color3.fromRGB(16, 16, 26)
     f.BorderSizePixel = 0
     f.Parent = Content
     local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, 3)
+    c.CornerRadius = UDim.new(0, 5)
     c.Parent = f
 
     local l = Instance.new("TextLabel")
     l.Size = UDim2.new(0.4, 0, 1, 0)
-    l.Position = UDim2.new(0, 10, 0, 0)
+    l.Position = UDim2.new(0, 12, 0, 0)
     l.BackgroundTransparency = 1
     l.Text = name
-    l.TextColor3 = Color3.fromRGB(220, 220, 220)
-    l.TextSize = 12
+    l.TextColor3 = Color3.fromRGB(200, 220, 255)
+    l.TextSize = 13
     l.Font = Enum.Font.Code
     l.TextXAlignment = Enum.TextXAlignment.Left
     l.Parent = f
@@ -582,16 +582,16 @@ local function dropdown(name, options, default, cb)
     end
 
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0.5, 0, 0, 18)
-    b.Position = UDim2.new(0.42, 0, 0.5, -9)
-    b.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    b.Size = UDim2.new(0.5, 0, 0, 20)
+    b.Position = UDim2.new(0.42, 0, 0.5, -10)
+    b.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
     b.Text = options[idx]
-    b.TextColor3 = Color3.fromRGB(255, 255, 255)
-    b.TextSize = 11
+    b.TextColor3 = Color3.fromRGB(0, 255, 255)
+    b.TextSize = 12
     b.Font = Enum.Font.Code
     b.Parent = f
     local bc = Instance.new("UICorner")
-    bc.CornerRadius = UDim.new(0, 2)
+    bc.CornerRadius = UDim.new(0, 4)
     bc.Parent = b
 
     b.MouseButton1Click:Connect(function()
@@ -604,7 +604,7 @@ end
 local function showAimbot()
     clear()
     for n, btn in pairs(tabBtns) do
-        btn.TextColor3 = n == "aimbot" and Color3.fromRGB(255,255,255) or Color3.fromRGB(120,120,120)
+        btn.TextColor3 = n == "aimbot" and Color3.fromRGB(0, 255, 255) or Color3.fromRGB(120, 120, 150)
     end
     toggle("Enabled", Config.Aimbot.Enabled, function(v)
         Config.Aimbot.Enabled = v
@@ -624,14 +624,14 @@ local function showAimbot()
         Config.Aimbot.FOV = v
         FOVCircle.Radius = v
     end)
-    slider("Smoothness", 0.12, 1, Config.Aimbot.Smooth, function(v) Config.Aimbot.Smooth = v end)
-    slider("Max Dist (Lobby Filter)", 100, 800, Config.Aimbot.MaxDistance, function(v) Config.Aimbot.MaxDistance = v end)
+    slider("Smoothness", 0.15, 1, Config.Aimbot.Smooth, function(v) Config.Aimbot.Smooth = v end)
+    slider("Max Dist", 100, 800, Config.Aimbot.MaxDistance, function(v) Config.Aimbot.MaxDistance = v end)
 end
 
 local function showESP()
     clear()
     for n, btn in pairs(tabBtns) do
-        btn.TextColor3 = n == "esp" and Color3.fromRGB(255,255,255) or Color3.fromRGB(120,120,120)
+        btn.TextColor3 = n == "esp" and Color3.fromRGB(0, 255, 255) or Color3.fromRGB(120, 120, 150)
     end
     toggle("Enabled", Config.ESP.Enabled, function(v)
         Config.ESP.Enabled = v
@@ -654,7 +654,7 @@ end
 local function showSkin()
     clear()
     for n, btn in pairs(tabBtns) do
-        btn.TextColor3 = n == "skin" and Color3.fromRGB(255,255,255) or Color3.fromRGB(120,120,120)
+        btn.TextColor3 = n == "skin" and Color3.fromRGB(0, 255, 255) or Color3.fromRGB(120, 120, 150)
     end
     toggle("Client Skin Spoof", Config.Skin.Enabled, function(v)
         Config.Skin.Enabled = v
@@ -668,7 +668,7 @@ local function showSkin()
             end
         end
     end)
-    dropdown("Skin Name", {"Gold", "Diamond", "Ruby", "Galaxy", "Default", "Neon"}, Config.Skin.Name, function(v)
+    dropdown("Skin Name", {"Gold", "Diamond", "Ruby", "Galaxy", "Neon", "Default"}, Config.Skin.Name, function(v)
         Config.Skin.Name = v
         if Config.Skin.Enabled then applyClientSkin() end
     end)
@@ -677,7 +677,7 @@ end
 local function showWorld()
     clear()
     for n, btn in pairs(tabBtns) do
-        btn.TextColor3 = n == "world" and Color3.fromRGB(255,255,255) or Color3.fromRGB(120,120,120)
+        btn.TextColor3 = n == "world" and Color3.fromRGB(0, 255, 255) or Color3.fromRGB(120, 120, 150)
     end
     toggle("Skybox", Config.World.Skybox, function(v)
         Config.World.Skybox = v
@@ -688,33 +688,33 @@ end
 local function showSettings()
     clear()
     for n, btn in pairs(tabBtns) do
-        btn.TextColor3 = n == "settings" and Color3.fromRGB(255,255,255) or Color3.fromRGB(120,120,120)
+        btn.TextColor3 = n == "settings" and Color3.fromRGB(0, 255, 255) or Color3.fromRGB(120, 120, 150)
     end
     local info = Instance.new("TextLabel")
     info.Size = UDim2.new(1, 0, 0, 70)
     info.BackgroundTransparency = 1
-    info.Text = "RightShift = Menu\nAimbot = Toggle\nSkin = Client side only\nMax Dist = Lobby Filter"
-    info.TextColor3 = Color3.fromRGB(160, 160, 160)
-    info.TextSize = 11
+    info.Text = "RightShift = Menu\nAimbot = Toggle\nSkin = Client only\nCyberpunk UI v8"
+    info.TextColor3 = Color3.fromRGB(150, 170, 200)
+    info.TextSize = 12
     info.Font = Enum.Font.Code
     info.TextXAlignment = Enum.TextXAlignment.Left
     info.Parent = Content
 end
 
 local names = {"aimbot", "esp", "skin", "world", "settings"}
-local x = 6
+local x = 8
 for _, n in ipairs(names) do
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, 68, 1, 0)
+    b.Size = UDim2.new(0, 72, 1, 0)
     b.Position = UDim2.new(0, x, 0, 0)
     b.BackgroundTransparency = 1
     b.Text = n
-    b.TextColor3 = Color3.fromRGB(120, 120, 120)
-    b.TextSize = 11
+    b.TextColor3 = Color3.fromRGB(120, 120, 150)
+    b.TextSize = 12
     b.Font = Enum.Font.Code
     b.Parent = TabBar
     tabBtns[n] = b
-    x = x + 72
+    x = x + 78
     b.MouseButton1Click:Connect(function()
         if n == "aimbot" then showAimbot()
         elseif n == "esp" then showESP()
@@ -757,4 +757,4 @@ Players.PlayerAdded:Connect(function(plr)
 end)
 Players.PlayerRemoving:Connect(removeESP)
 
-print("[Zelbro] v7 loaded | RightShift = Menu")
+print("[Zelbro] v8 Cyberpunk loaded | RightShift = Menu")
