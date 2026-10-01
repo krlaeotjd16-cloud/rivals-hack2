@@ -1,6 +1,7 @@
 --[[
-    Zelbro v4 — Rivals
-    Real Executor | Black & White | Max Performance
+    Zelbro v5 — Rivals
+    Real Executor | Black & White
+    Lobby Distance Filter + Unlock Skins + Skybox
 ]]
 
 local Players = game:GetService("Players")
@@ -9,6 +10,7 @@ local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lighting = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
@@ -17,11 +19,12 @@ local Config = {
     Aimbot = {
         Enabled = false,
         FOV = 130,
-        Smooth = 0.35,          -- 너무 낮으면 안 움직임 → 기본값 올림
+        Smooth = 0.35,
         TeamCheck = true,
         WallCheck = true,
         Target = "Head",
         ShowFOV = true,
+        MaxDistance = 400, -- 로비 필터 (이 거리 넘으면 타겟 안 함)
     },
     ESP = {
         Enabled = false,
@@ -35,14 +38,14 @@ local Config = {
         Color = Color3.fromRGB(255, 255, 255),
     },
     Skin = {
-        Enabled = false,
-        Name = "Gold",
+        UnlockAll = false,
+    },
+    World = {
+        Skybox = false,
     },
 }
 
-local State = {
-    GUI = true,
-}
+local State = { GUI = true }
 
 local PartMap = {
     Head = "Head",
@@ -93,10 +96,18 @@ end
 local function getTarget()
     local best, bestDist = nil, Config.Aimbot.FOV
     local center = Camera.ViewportSize / 2
+    local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return nil end
+
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and alive(plr) and enemy(plr) then
             local part = getPart(plr.Character)
             if part and visible(part) then
+                local dist3D = (part.Position - myRoot.Position).Magnitude
+                if dist3D > Config.Aimbot.MaxDistance then
+                    continue -- 로비 사람 필터
+                end
+
                 local sp, on = worldToScreen(part.Position)
                 if on then
                     local d = (sp - center).Magnitude
@@ -111,7 +122,7 @@ local function getTarget()
     return best
 end
 
--- ===================== FOV (화면 중앙 고정) =====================
+-- ===================== FOV (중앙 고정) =====================
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Thickness = 1.5
 FOVCircle.NumSides = 64
@@ -157,7 +168,7 @@ local function createESP(plr)
 
     local hpBg = Drawing.new("Line")
     hpBg.Thickness = 2
-    hpBg.Color = Color3.fromRGB(20, 20, 20)
+    hpBg.Color = Color3.fromRGB(40, 40, 40)
     hpBg.Visible = false
 
     local tracer = Drawing.new("Line")
@@ -181,6 +192,8 @@ end
 
 local function updateESP()
     local center = Camera.ViewportSize / 2
+    local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+
     for plr, obj in pairs(ESPObjects) do
         if not Config.ESP.Enabled or not alive(plr) or (Config.ESP.TeamCheck and not enemy(plr)) then
             obj.box.Visible = false
@@ -198,6 +211,17 @@ local function updateESP()
         local hum = char:FindFirstChildOfClass("Humanoid")
         if not root or not head or not hum then
             obj.box.Visible = false
+            continue
+        end
+
+        -- 로비 필터 (ESP도 너무 먼 사람 제외)
+        if myRoot and (root.Position - myRoot.Position).Magnitude > 500 then
+            obj.box.Visible = false
+            obj.name.Visible = false
+            obj.hpBar.Visible = false
+            obj.hpBg.Visible = false
+            obj.tracer.Visible = false
+            for _, l in ipairs(obj.skeleton) do l.Visible = false end
             continue
         end
 
@@ -244,7 +268,8 @@ local function updateESP()
             obj.hpBg.Visible = true
             obj.hpBar.From = Vector2.new(barX, footPos.Y)
             obj.hpBar.To = Vector2.new(barX, footPos.Y - height * hp)
-            obj.hpBar.Color = Color3.fromRGB(255, 255, 255)
+            -- 체력 색: 흰색 → 빨간색 그라데이션
+            obj.hpBar.Color = Color3.fromRGB(255, math.floor(80 + 175 * hp), math.floor(80 * hp))
             obj.hpBar.Visible = true
         else
             obj.hpBar.Visible = false
@@ -297,28 +322,62 @@ local function aim()
     local target = getTarget()
     if not target then return end
     local look = CFrame.lookAt(Camera.CFrame.Position, target.Position)
-    -- Smooth이 너무 낮아도 최소 움직임 보장
     local s = math.clamp(Config.Aimbot.Smooth, 0.12, 1)
     Camera.CFrame = Camera.CFrame:Lerp(look, s)
 end
 
--- ===================== SKIN =====================
-local function applySkin()
-    if not Config.Skin.Enabled then return end
-    local char = LocalPlayer.Character
-    if not char then return end
-    local skinVal = char:FindFirstChild("Skin") or char:FindFirstChild("CurrentSkin")
-    if skinVal and skinVal:IsA("StringValue") then
-        skinVal.Value = Config.Skin.Name
+-- ===================== SKIN UNLOCK =====================
+local function unlockAllSkins()
+    if not Config.Skin.UnlockAll then return end
+    -- 일반적인 스킨 언락 패턴
+    for _, v in pairs(getgc(true)) do
+        if typeof(v) == "table" then
+            if rawget(v, "Skins") or rawget(v, "OwnedSkins") or rawget(v, "Unlocked") then
+                pcall(function()
+                    for key, _ in pairs(v) do
+                        if typeof(key) == "string" and (key:lower():find("skin") or key:lower():find("unlock")) then
+                            v[key] = true
+                        end
+                    end
+                end)
+            end
+        end
     end
+    -- Remote로도 시도
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
     if remotes then
-        local r = remotes:FindFirstChild("ChangeSkin") or remotes:FindFirstChild("EquipSkin")
-        if r then pcall(function() r:FireServer(Config.Skin.Name) end) end
+        for _, r in pairs(remotes:GetDescendants()) do
+            if r:IsA("RemoteEvent") and (r.Name:lower():find("skin") or r.Name:lower():find("unlock")) then
+                pcall(function() r:FireServer(true) end)
+            end
+        end
     end
 end
 
--- ===================== GUI (Black/White Modern) =====================
+-- ===================== SKYBOX =====================
+local originalSky = nil
+local function setSkybox(on)
+    if on then
+        if not originalSky then
+            originalSky = Lighting:FindFirstChildOfClass("Sky")
+        end
+        local sky = Instance.new("Sky")
+        sky.SkyboxBk = "rbxassetid://159454299"
+        sky.SkyboxDn = "rbxassetid://159454296"
+        sky.SkyboxFt = "rbxassetid://159454293"
+        sky.SkyboxLf = "rbxassetid://159454286"
+        sky.SkyboxRt = "rbxassetid://159454300"
+        sky.SkyboxUp = "rbxassetid://159454288"
+        sky.Parent = Lighting
+        if originalSky then originalSky.Parent = nil end
+    else
+        local current = Lighting:FindFirstChildOfClass("Sky")
+        if current and current ~= originalSky then current:Destroy() end
+        if originalSky then originalSky.Parent = Lighting end
+    end
+end
+
+-- ===================== GUI =====================
 local SG = Instance.new("ScreenGui")
 SG.Name = "Zelbro"
 SG.ResetOnSpawn = false
@@ -327,8 +386,8 @@ pcall(function() SG.Parent = CoreGui end)
 if not SG.Parent then SG.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 
 local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 380, 0, 420)
-Main.Position = UDim2.new(0.5, -190, 0.5, -210)
+Main.Size = UDim2.new(0, 380, 0, 440)
+Main.Position = UDim2.new(0.5, -190, 0.5, -220)
 Main.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 Main.BorderSizePixel = 0
 Main.Active = true
@@ -376,7 +435,7 @@ Content.BackgroundTransparency = 1
 Content.BorderSizePixel = 0
 Content.ScrollBarThickness = 2
 Content.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
-Content.CanvasSize = UDim2.new(0, 0, 0, 520)
+Content.CanvasSize = UDim2.new(0, 0, 0, 560)
 Content.Parent = Main
 
 local UIList = Instance.new("UIListLayout")
@@ -556,6 +615,7 @@ local function showAimbot()
         FOVCircle.Radius = v
     end)
     slider("Smoothness", 0.12, 1, Config.Aimbot.Smooth, function(v) Config.Aimbot.Smooth = v end)
+    slider("Max Dist (Lobby Filter)", 100, 800, Config.Aimbot.MaxDistance, function(v) Config.Aimbot.MaxDistance = v end)
 end
 
 local function showESP()
@@ -586,13 +646,20 @@ local function showSkin()
     for n, btn in pairs(tabBtns) do
         btn.TextColor3 = n == "skin" and Color3.fromRGB(255,255,255) or Color3.fromRGB(120,120,120)
     end
-    toggle("Enabled", Config.Skin.Enabled, function(v)
-        Config.Skin.Enabled = v
-        if v then applySkin() end
+    toggle("Unlock All Skins", Config.Skin.UnlockAll, function(v)
+        Config.Skin.UnlockAll = v
+        if v then unlockAllSkins() end
     end)
-    dropdown("Skin", {"Gold", "Diamond", "Ruby", "Default", "Galaxy"}, Config.Skin.Name, function(v)
-        Config.Skin.Name = v
-        if Config.Skin.Enabled then applySkin() end
+end
+
+local function showWorld()
+    clear()
+    for n, btn in pairs(tabBtns) do
+        btn.TextColor3 = n == "world" and Color3.fromRGB(255,255,255) or Color3.fromRGB(120,120,120)
+    end
+    toggle("Skybox", Config.World.Skybox, function(v)
+        Config.World.Skybox = v
+        setSkybox(v)
     end)
 end
 
@@ -602,9 +669,9 @@ local function showSettings()
         btn.TextColor3 = n == "settings" and Color3.fromRGB(255,255,255) or Color3.fromRGB(120,120,120)
     end
     local info = Instance.new("TextLabel")
-    info.Size = UDim2.new(1, 0, 0, 50)
+    info.Size = UDim2.new(1, 0, 0, 60)
     info.BackgroundTransparency = 1
-    info.Text = "RightShift = Menu\nAimbot is TOGGLE (click Enabled)"
+    info.Text = "RightShift = Menu\nAimbot = Toggle (Enabled 버튼)\nMax Dist로 로비 필터 조절"
     info.TextColor3 = Color3.fromRGB(160, 160, 160)
     info.TextSize = 11
     info.Font = Enum.Font.Code
@@ -612,11 +679,11 @@ local function showSettings()
     info.Parent = Content
 end
 
-local names = {"aimbot", "esp", "skin", "settings"}
-local x = 8
+local names = {"aimbot", "esp", "skin", "world", "settings"}
+local x = 6
 for _, n in ipairs(names) do
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, 70, 1, 0)
+    b.Size = UDim2.new(0, 68, 1, 0)
     b.Position = UDim2.new(0, x, 0, 0)
     b.BackgroundTransparency = 1
     b.Text = n
@@ -630,6 +697,7 @@ for _, n in ipairs(names) do
         if n == "aimbot" then showAimbot()
         elseif n == "esp" then showESP()
         elseif n == "skin" then showSkin()
+        elseif n == "world" then showWorld()
         else showSettings() end
     end)
 end
@@ -667,9 +735,4 @@ Players.PlayerAdded:Connect(function(plr)
 end)
 Players.PlayerRemoving:Connect(removeESP)
 
-LocalPlayer.CharacterAdded:Connect(function()
-    task.wait(1)
-    if Config.Skin.Enabled then applySkin() end
-end)
-
-print("[Zelbro] v4 loaded | RightShift = Menu")
+print("[Zelbro] v5 loaded | RightShift = Menu")
