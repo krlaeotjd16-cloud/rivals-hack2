@@ -1,7 +1,7 @@
 --[[
-    Zelbro v5 — Rivals
+    Zelbro v6 — Rivals
     Real Executor | Black & White
-    Lobby Distance Filter + Unlock Skins + Skybox
+    TeamCheck Fix + Safe Skin Unlock
 ]]
 
 local Players = game:GetService("Players")
@@ -24,7 +24,7 @@ local Config = {
         WallCheck = true,
         Target = "Head",
         ShowFOV = true,
-        MaxDistance = 400, -- 로비 필터 (이 거리 넘으면 타겟 안 함)
+        MaxDistance = 400,
     },
     ESP = {
         Enabled = false,
@@ -63,8 +63,10 @@ end
 
 local function enemy(plr)
     if not Config.Aimbot.TeamCheck then return true end
-    if not LocalPlayer.Team then return true end
-    return plr.Team ~= LocalPlayer.Team
+    local myTeam = LocalPlayer.Team
+    local theirTeam = plr.Team
+    if not myTeam or not theirTeam then return true end
+    return myTeam ~= theirTeam
 end
 
 local function visible(part)
@@ -105,7 +107,7 @@ local function getTarget()
             if part and visible(part) then
                 local dist3D = (part.Position - myRoot.Position).Magnitude
                 if dist3D > Config.Aimbot.MaxDistance then
-                    continue -- 로비 사람 필터
+                    continue
                 end
 
                 local sp, on = worldToScreen(part.Position)
@@ -122,7 +124,7 @@ local function getTarget()
     return best
 end
 
--- ===================== FOV (중앙 고정) =====================
+-- ===================== FOV =====================
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Thickness = 1.5
 FOVCircle.NumSides = 64
@@ -214,7 +216,6 @@ local function updateESP()
             continue
         end
 
-        -- 로비 필터 (ESP도 너무 먼 사람 제외)
         if myRoot and (root.Position - myRoot.Position).Magnitude > 500 then
             obj.box.Visible = false
             obj.name.Visible = false
@@ -268,7 +269,6 @@ local function updateESP()
             obj.hpBg.Visible = true
             obj.hpBar.From = Vector2.new(barX, footPos.Y)
             obj.hpBar.To = Vector2.new(barX, footPos.Y - height * hp)
-            -- 체력 색: 흰색 → 빨간색 그라데이션
             obj.hpBar.Color = Color3.fromRGB(255, math.floor(80 + 175 * hp), math.floor(80 * hp))
             obj.hpBar.Visible = true
         else
@@ -326,29 +326,23 @@ local function aim()
     Camera.CFrame = Camera.CFrame:Lerp(look, s)
 end
 
--- ===================== SKIN UNLOCK =====================
+-- ===================== SAFE SKIN UNLOCK =====================
 local function unlockAllSkins()
     if not Config.Skin.UnlockAll then return end
-    -- 일반적인 스킨 언락 패턴
-    for _, v in pairs(getgc(true)) do
-        if typeof(v) == "table" then
-            if rawget(v, "Skins") or rawget(v, "OwnedSkins") or rawget(v, "Unlocked") then
-                pcall(function()
-                    for key, _ in pairs(v) do
-                        if typeof(key) == "string" and (key:lower():find("skin") or key:lower():find("unlock")) then
-                            v[key] = true
-                        end
-                    end
-                end)
-            end
-        end
-    end
-    -- Remote로도 시도
+
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-    if remotes then
-        for _, r in pairs(remotes:GetDescendants()) do
-            if r:IsA("RemoteEvent") and (r.Name:lower():find("skin") or r.Name:lower():find("unlock")) then
-                pcall(function() r:FireServer(true) end)
+        or ReplicatedStorage:FindFirstChild("RemoteEvents")
+        or ReplicatedStorage
+
+    for _, r in pairs(remotes:GetDescendants()) do
+        if r:IsA("RemoteEvent") or r:IsA("RemoteFunction") then
+            local name = r.Name:lower()
+            if name:find("skin") or name:find("unlock") or name:find("equip") or name:find("cosmetic") then
+                pcall(function()
+                    r:FireServer("all")
+                    r:FireServer(true)
+                    r:FireServer()
+                end)
             end
         end
     end
@@ -607,7 +601,10 @@ local function showAimbot()
         Config.Aimbot.ShowFOV = v
         FOVCircle.Visible = Config.Aimbot.Enabled and v
     end)
-    toggle("Team Check", Config.Aimbot.TeamCheck, function(v) Config.Aimbot.TeamCheck = v end)
+    toggle("Team Check", Config.Aimbot.TeamCheck, function(v)
+        Config.Aimbot.TeamCheck = v
+        Config.ESP.TeamCheck = v
+    end)
     toggle("Wall Check", Config.Aimbot.WallCheck, function(v) Config.Aimbot.WallCheck = v end)
     dropdown("Target", {"Head", "Body", "Legs"}, Config.Aimbot.Target, function(v) Config.Aimbot.Target = v end)
     slider("FOV Size", 40, 350, Config.Aimbot.FOV, function(v)
@@ -671,7 +668,7 @@ local function showSettings()
     local info = Instance.new("TextLabel")
     info.Size = UDim2.new(1, 0, 0, 60)
     info.BackgroundTransparency = 1
-    info.Text = "RightShift = Menu\nAimbot = Toggle (Enabled 버튼)\nMax Dist로 로비 필터 조절"
+    info.Text = "RightShift = Menu\nAimbot = Toggle (Enabled)\nMax Dist = Lobby Filter"
     info.TextColor3 = Color3.fromRGB(160, 160, 160)
     info.TextSize = 11
     info.Font = Enum.Font.Code
@@ -735,4 +732,4 @@ Players.PlayerAdded:Connect(function(plr)
 end)
 Players.PlayerRemoving:Connect(removeESP)
 
-print("[Zelbro] v5 loaded | RightShift = Menu")
+print("[Zelbro] v6 loaded | RightShift = Menu")
