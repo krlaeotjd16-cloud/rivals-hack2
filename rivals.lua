@@ -1,7 +1,7 @@
 --[[
-    Zelbro v6 — Rivals
+    Zelbro v7 — Rivals
     Real Executor | Black & White
-    TeamCheck Fix + Safe Skin Unlock
+    Client Skin Spoof + TeamCheck Fix + Lobby Filter
 ]]
 
 local Players = game:GetService("Players")
@@ -38,14 +38,18 @@ local Config = {
         Color = Color3.fromRGB(255, 255, 255),
     },
     Skin = {
-        UnlockAll = false,
+        Enabled = false,
+        Name = "Gold",
     },
     World = {
         Skybox = false,
     },
 }
 
-local State = { GUI = true }
+local State = {
+    GUI = true,
+    SkinConn = nil,
+}
 
 local PartMap = {
     Head = "Head",
@@ -326,23 +330,32 @@ local function aim()
     Camera.CFrame = Camera.CFrame:Lerp(look, s)
 end
 
--- ===================== SAFE SKIN UNLOCK =====================
-local function unlockAllSkins()
-    if not Config.Skin.UnlockAll then return end
+-- ===================== CLIENT SKIN SPOOF =====================
+local function applyClientSkin()
+    if not Config.Skin.Enabled then return end
 
-    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-        or ReplicatedStorage:FindFirstChild("RemoteEvents")
-        or ReplicatedStorage
+    local char = LocalPlayer.Character
+    if not char then return end
 
-    for _, r in pairs(remotes:GetDescendants()) do
-        if r:IsA("RemoteEvent") or r:IsA("RemoteFunction") then
-            local name = r.Name:lower()
-            if name:find("skin") or name:find("unlock") or name:find("equip") or name:find("cosmetic") then
+    for _, v in ipairs(char:GetDescendants()) do
+        if v:IsA("StringValue") then
+            local n = v.Name:lower()
+            if n:find("skin") or n:find("wrap") or n:find("cosmetic") or n:find("finish") then
                 pcall(function()
-                    r:FireServer("all")
-                    r:FireServer(true)
-                    r:FireServer()
+                    v.Value = Config.Skin.Name
                 end)
+            end
+        end
+    end
+
+    local tool = char:FindFirstChildOfClass("Tool")
+    if tool then
+        for _, v in ipairs(tool:GetDescendants()) do
+            if v:IsA("StringValue") then
+                local n = v.Name:lower()
+                if n:find("skin") or n:find("wrap") then
+                    pcall(function() v.Value = Config.Skin.Name end)
+                end
             end
         end
     end
@@ -643,9 +656,21 @@ local function showSkin()
     for n, btn in pairs(tabBtns) do
         btn.TextColor3 = n == "skin" and Color3.fromRGB(255,255,255) or Color3.fromRGB(120,120,120)
     end
-    toggle("Unlock All Skins", Config.Skin.UnlockAll, function(v)
-        Config.Skin.UnlockAll = v
-        if v then unlockAllSkins() end
+    toggle("Client Skin Spoof", Config.Skin.Enabled, function(v)
+        Config.Skin.Enabled = v
+        if v then
+            applyClientSkin()
+            if not State.SkinConn then
+                State.SkinConn = LocalPlayer.CharacterAdded:Connect(function()
+                    task.wait(1)
+                    if Config.Skin.Enabled then applyClientSkin() end
+                end)
+            end
+        end
+    end)
+    dropdown("Skin Name", {"Gold", "Diamond", "Ruby", "Galaxy", "Default", "Neon"}, Config.Skin.Name, function(v)
+        Config.Skin.Name = v
+        if Config.Skin.Enabled then applyClientSkin() end
     end)
 end
 
@@ -666,9 +691,9 @@ local function showSettings()
         btn.TextColor3 = n == "settings" and Color3.fromRGB(255,255,255) or Color3.fromRGB(120,120,120)
     end
     local info = Instance.new("TextLabel")
-    info.Size = UDim2.new(1, 0, 0, 60)
+    info.Size = UDim2.new(1, 0, 0, 70)
     info.BackgroundTransparency = 1
-    info.Text = "RightShift = Menu\nAimbot = Toggle (Enabled)\nMax Dist = Lobby Filter"
+    info.Text = "RightShift = Menu\nAimbot = Toggle\nSkin = Client side only\nMax Dist = Lobby Filter"
     info.TextColor3 = Color3.fromRGB(160, 160, 160)
     info.TextSize = 11
     info.Font = Enum.Font.Code
@@ -732,4 +757,4 @@ Players.PlayerAdded:Connect(function(plr)
 end)
 Players.PlayerRemoving:Connect(removeESP)
 
-print("[Zelbro] v6 loaded | RightShift = Menu")
+print("[Zelbro] v7 loaded | RightShift = Menu")
