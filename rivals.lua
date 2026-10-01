@@ -1,7 +1,7 @@
 --[[
-    Zelbro v2 — Rivals
-    Aimbot + ESP + FOV Circle
-    Xeno Compatible
+    Zelbro v3 — Rivals
+    Real Executor Optimized
+    Aimbot + ESP (Box/Skeleton/Health/Name) + FOV Circle
 ]]
 
 local Players = game:GetService("Players")
@@ -16,22 +16,26 @@ local Camera = Workspace.CurrentCamera
 local Config = {
     Aimbot = {
         Enabled = false,
-        Key = Enum.KeyCode.E,
+        Key = Enum.UserInputType.MouseButton2, -- 우클릭
         FOV = 120,
-        Smooth = 0.2,
+        Smooth = 0.18,
         TeamCheck = true,
         WallCheck = true,
-        Target = "Head",
+        Target = "Head", -- Head / Body / Legs
         ShowFOV = true,
+        Silent = false,
     },
     ESP = {
         Enabled = false,
         TeamCheck = true,
-        MaxDistance = 1200,
+        MaxDistance = 1500,
         Box = true,
+        Skeleton = true,
         Health = true,
         Name = true,
-        Color = Color3.fromRGB(255, 60, 60),
+        Tracer = false,
+        Color = Color3.fromRGB(255, 55, 55),
+        FriendColor = Color3.fromRGB(50, 255, 100),
     },
 }
 
@@ -64,11 +68,11 @@ end
 local function visible(part)
     if not Config.Aimbot.WallCheck then return true end
     local origin = Camera.CFrame.Position
-    local dir = part.Position - origin
+    local dir = (part.Position - origin)
     local params = RaycastParams.new()
     params.FilterType = Enum.RaycastFilterType.Exclude
     params.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
-    local result = Workspace:Raycast(origin, dir, params)
+    local result = Workspace:Raycast(origin, dir.Unit * dir.Magnitude, params)
     return not result or result.Instance:IsDescendantOf(part.Parent)
 end
 
@@ -82,6 +86,11 @@ local function getPart(char)
     return char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head")
 end
 
+local function worldToScreen(pos)
+    local s, on = Camera:WorldToViewportPoint(pos)
+    return Vector2.new(s.X, s.Y), on, s.Z
+end
+
 local function getTarget()
     local best, bestDist = nil, Config.Aimbot.FOV
     local mouse = UserInputService:GetMouseLocation()
@@ -89,9 +98,9 @@ local function getTarget()
         if plr ~= LocalPlayer and alive(plr) and enemy(plr) then
             local part = getPart(plr.Character)
             if part and visible(part) then
-                local sp, on = Camera:WorldToViewportPoint(part.Position)
+                local sp, on = worldToScreen(part.Position)
                 if on then
-                    local d = (Vector2.new(sp.X, sp.Y) - mouse).Magnitude
+                    local d = (sp - mouse).Magnitude
                     if d < bestDist then
                         bestDist = d
                         best = part
@@ -104,134 +113,214 @@ local function getTarget()
 end
 
 -- ===================== FOV CIRCLE =====================
-local FOVRing = Instance.new("Frame")
-FOVRing.Name = "ZelbroFOV"
-FOVRing.AnchorPoint = Vector2.new(0.5, 0.5)
-FOVRing.BackgroundTransparency = 1
-FOVRing.Size = UDim2.new(0, Config.Aimbot.FOV * 2, 0, Config.Aimbot.FOV * 2)
-FOVRing.Visible = false
-FOVRing.Parent = SG or game:GetService("CoreGui") -- 임시, 아래에서 재설정
-
-local FOVStroke = Instance.new("UIStroke")
-FOVStroke.Color = Color3.fromRGB(255, 255, 255)
-FOVStroke.Thickness = 1.5
-FOVStroke.Transparency = 0.3
-FOVStroke.Parent = FOVRing
-
-local FOVCorner = Instance.new("UICorner")
-FOVCorner.CornerRadius = UDim.new(1, 0)
-FOVCorner.Parent = FOVRing
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Thickness = 1.5
+FOVCircle.NumSides = 64
+FOVCircle.Radius = Config.Aimbot.FOV
+FOVCircle.Filled = false
+FOVCircle.Color = Color3.fromRGB(255, 255, 255)
+FOVCircle.Transparency = 0.8
+FOVCircle.Visible = false
 
 -- ===================== ESP =====================
-local espFolder = Instance.new("Folder")
-espFolder.Name = "ZelbroESP"
-espFolder.Parent = CoreGui
+local ESPObjects = {}
 
-local function clearESP(plr)
-    local old = espFolder:FindFirstChild(plr.Name)
-    if old then old:Destroy() end
+local function removeESP(plr)
+    local obj = ESPObjects[plr]
+    if not obj then return end
+    for _, v in pairs(obj) do
+        if typeof(v) == "userdata" and v.Remove then
+            pcall(function() v:Remove() end)
+        elseif typeof(v) == "Instance" then
+            pcall(function() v:Destroy() end)
+        end
+    end
+    ESPObjects[plr] = nil
 end
 
-local function makeESP(plr)
-    clearESP(plr)
+local function createESP(plr)
+    removeESP(plr)
     if not Config.ESP.Enabled then return end
-    if not alive(plr) or (Config.ESP.TeamCheck and not enemy(plr)) then return end
-    local char = plr.Character
-    if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if not root or not hum then return end
 
-    local bill = Instance.new("BillboardGui")
-    bill.Name = plr.Name
-    bill.Adornee = root
-    bill.Size = UDim2.new(0, 120, 0, 50)
-    bill.StudsOffset = Vector3.new(0, 3.2, 0)
-    bill.AlwaysOnTop = true
-    bill.Parent = espFolder
+    local box = Drawing.new("Square")
+    box.Thickness = 1
+    box.Filled = false
+    box.Visible = false
 
-    if Config.ESP.Name then
-        local nameLabel = Instance.new("TextLabel")
-        nameLabel.Size = UDim2.new(1, 0, 0, 16)
-        nameLabel.BackgroundTransparency = 1
-        nameLabel.Text = plr.Name
-        nameLabel.TextColor3 = Config.ESP.Color
-        nameLabel.TextSize = 12
-        nameLabel.Font = Enum.Font.GothamBold
-        nameLabel.TextStrokeTransparency = 0.5
-        nameLabel.Parent = bill
+    local name = Drawing.new("Text")
+    name.Size = 14
+    name.Center = true
+    name.Outline = true
+    name.Visible = false
+
+    local healthBar = Drawing.new("Line")
+    healthBar.Thickness = 2
+    healthBar.Visible = false
+
+    local healthBg = Drawing.new("Line")
+    healthBg.Thickness = 2
+    healthBg.Color = Color3.fromRGB(30, 30, 30)
+    healthBg.Visible = false
+
+    local tracer = Drawing.new("Line")
+    tracer.Thickness = 1
+    tracer.Visible = false
+
+    -- Skeleton lines
+    local skeleton = {}
+    local bones = {"Head-Torso", "Torso-LeftArm", "Torso-RightArm", "Torso-LeftLeg", "Torso-RightLeg"}
+    for i = 1, 5 do
+        local line = Drawing.new("Line")
+        line.Thickness = 1.5
+        line.Visible = false
+        skeleton[i] = line
     end
 
-    if Config.ESP.Health then
-        local bg = Instance.new("Frame")
-        bg.Size = UDim2.new(0.8, 0, 0, 5)
-        bg.Position = UDim2.new(0.1, 0, 0, 18)
-        bg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-        bg.BorderSizePixel = 0
-        bg.Parent = bill
-        local bgc = Instance.new("UICorner")
-        bgc.CornerRadius = UDim.new(1, 0)
-        bgc.Parent = bg
-
-        local fill = Instance.new("Frame")
-        fill.Size = UDim2.new(hum.Health / hum.MaxHealth, 0, 1, 0)
-        fill.BackgroundColor3 = Color3.fromRGB(50, 220, 80)
-        fill.BorderSizePixel = 0
-        fill.Parent = bg
-        local fc = Instance.new("UICorner")
-        fc.CornerRadius = UDim.new(1, 0)
-        fc.Parent = fill
-
-        hum.HealthChanged:Connect(function()
-            if fill and fill.Parent then
-                fill.Size = UDim2.new(math.clamp(hum.Health / hum.MaxHealth, 0, 1), 0, 1, 0)
-            end
-        end)
-    end
-
-    -- Box (Highlight)
-    if Config.ESP.Box then
-        local hl = Instance.new("Highlight")
-        hl.FillColor = Config.ESP.Color
-        hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-        hl.FillTransparency = 0.7
-        hl.OutlineTransparency = 0
-        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        hl.Parent = char
-        bill:SetAttribute("HasHL", true)
-    end
+    ESPObjects[plr] = {
+        box = box,
+        name = name,
+        healthBar = healthBar,
+        healthBg = healthBg,
+        tracer = tracer,
+        skeleton = skeleton,
+    }
 end
 
-local function refreshESP()
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer then
-            makeESP(plr)
+local function updateESP()
+    for plr, obj in pairs(ESPObjects) do
+        if not alive(plr) or (Config.ESP.TeamCheck and not enemy(plr)) then
+            obj.box.Visible = false
+            obj.name.Visible = false
+            obj.healthBar.Visible = false
+            obj.healthBg.Visible = false
+            obj.tracer.Visible = false
+            for _, line in ipairs(obj.skeleton) do line.Visible = false end
+            continue
+        end
+
+        local char = plr.Character
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local head = char:FindFirstChild("Head")
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not root or not head or not hum then
+            obj.box.Visible = false
+            continue
+        end
+
+        local rootPos, onScreen, depth = worldToScreen(root.Position)
+        if not onScreen or depth > Config.ESP.MaxDistance then
+            obj.box.Visible = false
+            obj.name.Visible = false
+            obj.healthBar.Visible = false
+            obj.healthBg.Visible = false
+            obj.tracer.Visible = false
+            for _, line in ipairs(obj.skeleton) do line.Visible = false end
+            continue
+        end
+
+        local headPos = worldToScreen(head.Position + Vector3.new(0, 0.5, 0))
+        local footPos = worldToScreen(root.Position - Vector3.new(0, 3, 0))
+        local height = math.abs(headPos.Y - footPos.Y)
+        local width = height / 1.8
+        local color = enemy(plr) and Config.ESP.Color or Config.ESP.FriendColor
+
+        -- Box
+        if Config.ESP.Box then
+            obj.box.Size = Vector2.new(width, height)
+            obj.box.Position = Vector2.new(rootPos.X - width/2, headPos.Y)
+            obj.box.Color = color
+            obj.box.Visible = true
+        else
+            obj.box.Visible = false
+        end
+
+        -- Name
+        if Config.ESP.Name then
+            obj.name.Text = plr.Name
+            obj.name.Position = Vector2.new(rootPos.X, headPos.Y - 16)
+            obj.name.Color = color
+            obj.name.Visible = true
+        else
+            obj.name.Visible = false
+        end
+
+        -- Health Bar
+        if Config.ESP.Health then
+            local hp = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+            local barX = rootPos.X - width/2 - 6
+            obj.healthBg.From = Vector2.new(barX, footPos.Y)
+            obj.healthBg.To = Vector2.new(barX, headPos.Y)
+            obj.healthBg.Visible = true
+
+            obj.healthBar.From = Vector2.new(barX, footPos.Y)
+            obj.healthBar.To = Vector2.new(barX, footPos.Y - (height * hp))
+            obj.healthBar.Color = Color3.fromRGB(255 * (1 - hp), 255 * hp, 40)
+            obj.healthBar.Visible = true
+        else
+            obj.healthBar.Visible = false
+            obj.healthBg.Visible = false
+        end
+
+        -- Tracer
+        if Config.ESP.Tracer then
+            obj.tracer.From = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y)
+            obj.tracer.To = Vector2.new(rootPos.X, footPos.Y)
+            obj.tracer.Color = color
+            obj.tracer.Visible = true
+        else
+            obj.tracer.Visible = false
+        end
+
+        -- Skeleton
+        if Config.ESP.Skeleton then
+            local function getPos(partName)
+                local p = char:FindFirstChild(partName)
+                if p then
+                    local sp, on = worldToScreen(p.Position)
+                    return on and sp or nil
+                end
+                return nil
+            end
+
+            local h = getPos("Head")
+            local t = getPos("UpperTorso") or getPos("Torso") or getPos("HumanoidRootPart")
+            local la = getPos("LeftHand") or getPos("Left Arm")
+            local ra = getPos("RightHand") or getPos("Right Arm")
+            local ll = getPos("LeftFoot") or getPos("Left Leg")
+            local rl = getPos("RightFoot") or getPos("Right Leg")
+
+            local connections = {
+                {h, t},
+                {t, la},
+                {t, ra},
+                {t, ll},
+                {t, rl},
+            }
+
+            for i, conn in ipairs(connections) do
+                if conn[1] and conn[2] then
+                    obj.skeleton[i].From = conn[1]
+                    obj.skeleton[i].To = conn[2]
+                    obj.skeleton[i].Color = color
+                    obj.skeleton[i].Visible = true
+                else
+                    obj.skeleton[i].Visible = false
+                end
+            end
+        else
+            for _, line in ipairs(obj.skeleton) do line.Visible = false end
         end
     end
 end
 
-local function hook(plr)
-    plr.CharacterAdded:Connect(function()
-        task.wait(0.8)
-        makeESP(plr)
-    end)
-    if plr.Character then makeESP(plr) end
-end
-
-for _, plr in ipairs(Players:GetPlayers()) do
-    if plr ~= LocalPlayer then hook(plr) end
-end
-Players.PlayerAdded:Connect(hook)
-Players.PlayerRemoving:Connect(function(plr)
-    clearESP(plr)
-end)
-
--- ===================== AIM =====================
+-- ===================== AIMBOT =====================
 local function aim()
     if not Config.Aimbot.Enabled or not State.Holding then return end
-    local t = getTarget()
-    if not t then return end
-    local look = CFrame.lookAt(Camera.CFrame.Position, t.Position)
+    local target = getTarget()
+    if not target then return end
+
+    local pos = target.Position
+    local look = CFrame.lookAt(Camera.CFrame.Position, pos)
     Camera.CFrame = Camera.CFrame:Lerp(look, Config.Aimbot.Smooth)
 end
 
@@ -243,13 +332,10 @@ SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 pcall(function() SG.Parent = CoreGui end)
 if not SG.Parent then SG.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 
--- FOV 원 부모 재설정
-FOVRing.Parent = SG
-
 local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 400, 0, 380)
-Main.Position = UDim2.new(0.5, -200, 0.5, -190)
-Main.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
+Main.Size = UDim2.new(0, 410, 0, 400)
+Main.Position = UDim2.new(0.5, -205, 0.5, -200)
+Main.BackgroundColor3 = Color3.fromRGB(14, 14, 17)
 Main.BorderSizePixel = 0
 Main.Active = true
 Main.Draggable = true
@@ -260,14 +346,13 @@ mc.CornerRadius = UDim.new(0, 8)
 mc.Parent = Main
 
 local ms = Instance.new("UIStroke")
-ms.Color = Color3.fromRGB(50, 50, 60)
+ms.Color = Color3.fromRGB(45, 45, 55)
 ms.Thickness = 1
 ms.Parent = Main
 
--- Header
 local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1, 0, 0, 34)
-Header.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
+Header.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
 Header.BorderSizePixel = 0
 Header.Parent = Main
 local hc = Instance.new("UICorner")
@@ -285,11 +370,10 @@ Title.Font = Enum.Font.GothamBold
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Header
 
--- Tabs
 local TabBar = Instance.new("Frame")
 TabBar.Size = UDim2.new(1, 0, 0, 28)
 TabBar.Position = UDim2.new(0, 0, 0, 34)
-TabBar.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+TabBar.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
 TabBar.BorderSizePixel = 0
 TabBar.Parent = Main
 
@@ -300,7 +384,7 @@ Content.BackgroundTransparency = 1
 Content.BorderSizePixel = 0
 Content.ScrollBarThickness = 3
 Content.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 70)
-Content.CanvasSize = UDim2.new(0, 0, 0, 500)
+Content.CanvasSize = UDim2.new(0, 0, 0, 550)
 Content.Parent = Main
 
 local UIList = Instance.new("UIListLayout")
@@ -318,7 +402,7 @@ end
 local function toggle(name, default, cb)
     local f = Instance.new("Frame")
     f.Size = UDim2.new(1, 0, 0, 28)
-    f.BackgroundColor3 = Color3.fromRGB(26, 26, 32)
+    f.BackgroundColor3 = Color3.fromRGB(24, 24, 30)
     f.BorderSizePixel = 0
     f.Parent = Content
     local c = Instance.new("UICorner")
@@ -361,7 +445,7 @@ end
 local function slider(name, min, max, default, cb)
     local f = Instance.new("Frame")
     f.Size = UDim2.new(1, 0, 0, 44)
-    f.BackgroundColor3 = Color3.fromRGB(26, 26, 32)
+    f.BackgroundColor3 = Color3.fromRGB(24, 24, 30)
     f.BorderSizePixel = 0
     f.Parent = Content
     local c = Instance.new("UICorner")
@@ -421,7 +505,7 @@ end
 local function dropdown(name, options, default, cb)
     local f = Instance.new("Frame")
     f.Size = UDim2.new(1, 0, 0, 28)
-    f.BackgroundColor3 = Color3.fromRGB(26, 26, 32)
+    f.BackgroundColor3 = Color3.fromRGB(24, 24, 30)
     f.BorderSizePixel = 0
     f.Parent = Content
     local c = Instance.new("UICorner")
@@ -467,7 +551,7 @@ end
 local function keybind(name, current, cb)
     local f = Instance.new("Frame")
     f.Size = UDim2.new(1, 0, 0, 28)
-    f.BackgroundColor3 = Color3.fromRGB(26, 26, 32)
+    f.BackgroundColor3 = Color3.fromRGB(24, 24, 30)
     f.BorderSizePixel = 0
     f.Parent = Content
     local c = Instance.new("UICorner")
@@ -489,7 +573,7 @@ local function keybind(name, current, cb)
     b.Size = UDim2.new(0.4, 0, 0, 20)
     b.Position = UDim2.new(0.55, 0, 0.5, -10)
     b.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-    b.Text = current.Name
+    b.Text = typeof(current) == "EnumItem" and current.Name or "RMB"
     b.TextColor3 = Color3.fromRGB(230, 230, 240)
     b.TextSize = 11
     b.Font = Enum.Font.Gotham
@@ -507,10 +591,16 @@ local function keybind(name, current, cb)
             if input.UserInputType == Enum.UserInputType.Keyboard then
                 Config.Aimbot.Key = input.KeyCode
                 b.Text = input.KeyCode.Name
-                State.Binding = false
-                conn:Disconnect()
-                cb(input.KeyCode)
-            end
+            elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
+                Config.Aimbot.Key = Enum.UserInputType.MouseButton1
+                b.Text = "LMB"
+            elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+                Config.Aimbot.Key = Enum.UserInputType.MouseButton2
+                b.Text = "RMB"
+            else return end
+            State.Binding = false
+            conn:Disconnect()
+            cb(Config.Aimbot.Key)
         end)
     end)
 end
@@ -522,18 +612,18 @@ local function showAimbot()
     end
     toggle("Enabled", Config.Aimbot.Enabled, function(v)
         Config.Aimbot.Enabled = v
-        FOVRing.Visible = v and Config.Aimbot.ShowFOV
+        FOVCircle.Visible = v and Config.Aimbot.ShowFOV
     end)
-    toggle("Show FOV Circle", Config.Aimbot.ShowFOV, function(v)
+    toggle("Show FOV", Config.Aimbot.ShowFOV, function(v)
         Config.Aimbot.ShowFOV = v
-        FOVRing.Visible = Config.Aimbot.Enabled and v
+        FOVCircle.Visible = Config.Aimbot.Enabled and v
     end)
     toggle("Team Check", Config.Aimbot.TeamCheck, function(v) Config.Aimbot.TeamCheck = v end)
     toggle("Wall Check", Config.Aimbot.WallCheck, function(v) Config.Aimbot.WallCheck = v end)
     dropdown("Target", {"Head", "Body", "Legs"}, Config.Aimbot.Target, function(v) Config.Aimbot.Target = v end)
-    slider("FOV Size", 40, 300, Config.Aimbot.FOV, function(v)
+    slider("FOV Size", 40, 350, Config.Aimbot.FOV, function(v)
         Config.Aimbot.FOV = v
-        FOVRing.Size = UDim2.new(0, v * 2, 0, v * 2)
+        FOVCircle.Radius = v
     end)
     slider("Smoothness", 0.05, 1, Config.Aimbot.Smooth, function(v) Config.Aimbot.Smooth = v end)
     keybind("Aim Key", Config.Aimbot.Key, function(k) Config.Aimbot.Key = k end)
@@ -546,24 +636,20 @@ local function showESP()
     end
     toggle("Enabled", Config.ESP.Enabled, function(v)
         Config.ESP.Enabled = v
-        refreshESP()
+        if v then
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer then createESP(plr) end
+            end
+        else
+            for plr in pairs(ESPObjects) do removeESP(plr) end
+        end
     end)
-    toggle("Box", Config.ESP.Box, function(v)
-        Config.ESP.Box = v
-        refreshESP()
-    end)
-    toggle("Health Bar", Config.ESP.Health, function(v)
-        Config.ESP.Health = v
-        refreshESP()
-    end)
-    toggle("Name", Config.ESP.Name, function(v)
-        Config.ESP.Name = v
-        refreshESP()
-    end)
-    toggle("Team Check", Config.ESP.TeamCheck, function(v)
-        Config.ESP.TeamCheck = v
-        refreshESP()
-    end)
+    toggle("Box", Config.ESP.Box, function(v) Config.ESP.Box = v end)
+    toggle("Skeleton", Config.ESP.Skeleton, function(v) Config.ESP.Skeleton = v end)
+    toggle("Health Bar", Config.ESP.Health, function(v) Config.ESP.Health = v end)
+    toggle("Name", Config.ESP.Name, function(v) Config.ESP.Name = v end)
+    toggle("Tracer", Config.ESP.Tracer, function(v) Config.ESP.Tracer = v end)
+    toggle("Team Check", Config.ESP.TeamCheck, function(v) Config.ESP.TeamCheck = v end)
 end
 
 local function showSettings()
@@ -572,9 +658,9 @@ local function showSettings()
         btn.TextColor3 = n == "settings" and Color3.fromRGB(255,255,255) or Color3.fromRGB(130,130,140)
     end
     local info = Instance.new("TextLabel")
-    info.Size = UDim2.new(1, 0, 0, 60)
+    info.Size = UDim2.new(1, 0, 0, 70)
     info.BackgroundTransparency = 1
-    info.Text = "RightShift = Toggle Menu\nAim Key는 Aimbot 탭에서 변경"
+    info.Text = "RightShift = Toggle Menu\nAim Key는 Aimbot 탭에서 변경 가능\n기본 키: 우클릭 (RMB)"
     info.TextColor3 = Color3.fromRGB(150, 150, 160)
     info.TextSize = 12
     info.Font = Enum.Font.Gotham
@@ -582,7 +668,6 @@ local function showSettings()
     info.Parent = Content
 end
 
--- Tabs
 local names = {"aimbot", "esp", "settings"}
 local x = 12
 for _, n in ipairs(names) do
@@ -609,33 +694,46 @@ showAimbot()
 -- ===================== INPUT =====================
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp or State.Binding then return end
-    if input.KeyCode == Config.Aimbot.Key then
-        State.Holding = true
-    elseif input.KeyCode == Enum.KeyCode.RightShift then
+    local key = Config.Aimbot.Key
+    if typeof(key) == "EnumItem" and key.EnumType == Enum.KeyCode then
+        if input.KeyCode == key then State.Holding = true end
+    else
+        if input.UserInputType == key then State.Holding = true end
+    end
+    if input.KeyCode == Enum.KeyCode.RightShift then
         State.GUI = not State.GUI
         Main.Visible = State.GUI
     end
 end)
 
 UserInputService.InputEnded:Connect(function(input)
-    if input.KeyCode == Config.Aimbot.Key then
-        State.Holding = false
+    local key = Config.Aimbot.Key
+    if typeof(key) == "EnumItem" and key.EnumType == Enum.KeyCode then
+        if input.KeyCode == key then State.Holding = false end
+    else
+        if input.UserInputType == key then State.Holding = false end
     end
 end)
 
 -- ===================== LOOP =====================
 RunService.RenderStepped:Connect(function()
+    FOVCircle.Position = UserInputService:GetMouseLocation()
+    FOVCircle.Radius = Config.Aimbot.FOV
+    FOVCircle.Visible = Config.Aimbot.Enabled and Config.Aimbot.ShowFOV
+
     aim()
-    -- FOV 위치 마우스 따라다니게
-    local m = UserInputService:GetMouseLocation()
-    FOVRing.Position = UDim2.new(0, m.X, 0, m.Y)
+    if Config.ESP.Enabled then updateESP() end
 end)
 
-task.spawn(function()
-    while true do
-        task.wait(2)
-        if Config.ESP.Enabled then refreshESP() end
-    end
+for _, plr in ipairs(Players:GetPlayers()) do
+    if plr ~= LocalPlayer then createESP(plr) end
+end
+Players.PlayerAdded:Connect(function(plr)
+    plr.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        if Config.ESP.Enabled then createESP(plr) end
+    end)
 end)
+Players.PlayerRemoving:Connect(removeESP)
 
-print("[Zelbro] v2 loaded | RightShift = Menu")
+print("[Zelbro] v3 Real loaded | RMB = Aim | RightShift = Menu")
