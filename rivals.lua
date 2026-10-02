@@ -1,7 +1,7 @@
 --[[
-    Zelbro v8 — Rivals
-    Real Executor | Cyberpunk Neon GUI
-    Stable Aimbot + Improved ESP + Client Skin Spoof
+    Zelbro v9 — Hyper
+    Real Executor | Cyberpunk Neon
+    Aggressive Skin Changer + Stable Aim + Full ESP
 ]]
 
 local Players = game:GetService("Players")
@@ -9,8 +9,8 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
-local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
@@ -18,18 +18,18 @@ local Camera = Workspace.CurrentCamera
 local Config = {
     Aimbot = {
         Enabled = false,
-        FOV = 130,
-        Smooth = 0.28,
+        FOV = 140,
+        Smooth = 0.22,
         TeamCheck = true,
         WallCheck = true,
         Target = "Head",
         ShowFOV = true,
-        MaxDistance = 420,
+        MaxDistance = 450,
     },
     ESP = {
         Enabled = false,
         TeamCheck = true,
-        MaxDistance = 1600,
+        MaxDistance = 1800,
         Box = true,
         Skeleton = true,
         Health = true,
@@ -46,10 +46,7 @@ local Config = {
     },
 }
 
-local State = {
-    GUI = true,
-    SkinConn = nil,
-}
+local State = { GUI = true, SkinConn = nil }
 
 local PartMap = {
     Head = "Head",
@@ -111,7 +108,6 @@ local function getTarget()
             if part and visible(part) then
                 local dist3D = (part.Position - myRoot.Position).Magnitude
                 if dist3D > Config.Aimbot.MaxDistance then continue end
-
                 local sp, on = worldToScreen(part.Position)
                 if on then
                     local d = (sp - center).Magnitude
@@ -133,7 +129,7 @@ FOVCircle.NumSides = 64
 FOVCircle.Radius = Config.Aimbot.FOV
 FOVCircle.Filled = false
 FOVCircle.Color = Color3.fromRGB(0, 255, 255)
-FOVCircle.Transparency = 0.65
+FOVCircle.Transparency = 0.6
 FOVCircle.Visible = false
 
 -- ===================== ESP =====================
@@ -167,12 +163,12 @@ local function createESP(plr)
     name.Visible = false
 
     local hpBar = Drawing.new("Line")
-    hpBar.Thickness = 2
+    hpBar.Thickness = 2.5
     hpBar.Visible = false
 
     local hpBg = Drawing.new("Line")
-    hpBg.Thickness = 2
-    hpBg.Color = Color3.fromRGB(30, 30, 40)
+    hpBg.Thickness = 2.5
+    hpBg.Color = Color3.fromRGB(25, 25, 35)
     hpBg.Visible = false
 
     local tracer = Drawing.new("Line")
@@ -218,7 +214,7 @@ local function updateESP()
             continue
         end
 
-        if myRoot and (root.Position - myRoot.Position).Magnitude > 500 then
+        if myRoot and (root.Position - myRoot.Position).Magnitude > 550 then
             obj.box.Visible = false
             obj.name.Visible = false
             obj.hpBar.Visible = false
@@ -239,10 +235,10 @@ local function updateESP()
             continue
         end
 
-        local headPos = worldToScreen(head.Position + Vector3.new(0, 0.4, 0))
-        local footPos = worldToScreen(root.Position - Vector3.new(0, 3, 0))
+        local headPos = worldToScreen(head.Position + Vector3.new(0, 0.5, 0))
+        local footPos = worldToScreen(root.Position - Vector3.new(0, 3.2, 0))
         local height = math.abs(headPos.Y - footPos.Y)
-        local width = height / 1.9
+        local width = height / 1.85
         local color = Config.ESP.Color
 
         if Config.ESP.Box then
@@ -256,7 +252,7 @@ local function updateESP()
 
         if Config.ESP.Name then
             obj.name.Text = plr.Name
-            obj.name.Position = Vector2.new(rootPos.X, headPos.Y - 15)
+            obj.name.Position = Vector2.new(rootPos.X, headPos.Y - 16)
             obj.name.Color = color
             obj.name.Visible = true
         else
@@ -265,13 +261,13 @@ local function updateESP()
 
         if Config.ESP.Health then
             local hp = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
-            local barX = rootPos.X - width/2 - 5
+            local barX = rootPos.X - width/2 - 6
             obj.hpBg.From = Vector2.new(barX, footPos.Y)
             obj.hpBg.To = Vector2.new(barX, headPos.Y)
             obj.hpBg.Visible = true
             obj.hpBar.From = Vector2.new(barX, footPos.Y)
             obj.hpBar.To = Vector2.new(barX, footPos.Y - height * hp)
-            obj.hpBar.Color = Color3.fromRGB(0, math.floor(100 + 155 * hp), 255)
+            obj.hpBar.Color = Color3.fromRGB(0, math.floor(120 + 135 * hp), 255)
             obj.hpBar.Visible = true
         else
             obj.hpBar.Visible = false
@@ -324,36 +320,84 @@ local function aim()
     local target = getTarget()
     if not target then return end
     local look = CFrame.lookAt(Camera.CFrame.Position, target.Position)
-    local s = math.clamp(Config.Aimbot.Smooth, 0.15, 1)
+    local s = math.clamp(Config.Aimbot.Smooth, 0.12, 1)
     Camera.CFrame = Camera.CFrame:Lerp(look, s)
 end
 
--- ===================== CLIENT SKIN SPOOF =====================
-local function applyClientSkin()
+-- ===================== AGGRESSIVE SKIN CHANGER =====================
+local function forceSkin()
     if not Config.Skin.Enabled then return end
+
+    -- 1. 캐릭터 내부 StringValue 강제
     local char = LocalPlayer.Character
-    if not char then return end
-
-    for _, v in ipairs(char:GetDescendants()) do
-        if v:IsA("StringValue") then
-            local n = v.Name:lower()
-            if n:find("skin") or n:find("wrap") or n:find("cosmetic") or n:find("finish") then
-                pcall(function() v.Value = Config.Skin.Name end)
-            end
-        end
-    end
-
-    local tool = char:FindFirstChildOfClass("Tool")
-    if tool then
-        for _, v in ipairs(tool:GetDescendants()) do
+    if char then
+        for _, v in ipairs(char:GetDescendants()) do
             if v:IsA("StringValue") then
                 local n = v.Name:lower()
-                if n:find("skin") or n:find("wrap") then
+                if n:find("skin") or n:find("wrap") or n:find("cosmetic") or n:find("finish") or n:find("style") then
                     pcall(function() v.Value = Config.Skin.Name end)
                 end
             end
         end
     end
+
+    -- 2. 툴(무기) 강제
+    if char then
+        local tool = char:FindFirstChildOfClass("Tool")
+        if tool then
+            for _, v in ipairs(tool:GetDescendants()) do
+                if v:IsA("StringValue") then
+                    local n = v.Name:lower()
+                    if n:find("skin") or n:find("wrap") or n:find("finish") then
+                        pcall(function() v.Value = Config.Skin.Name end)
+                    end
+                end
+            end
+        end
+    end
+
+    -- 3. getgc로 테이블 스푸프 시도
+    pcall(function()
+        for _, v in pairs(getgc(true)) do
+            if typeof(v) == "table" then
+                if rawget(v, "OwnedSkins") or rawget(v, "Skins") or rawget(v, "UnlockedSkins") or rawget(v, "Inventory") then
+                    for key, val in pairs(v) do
+                        if typeof(key) == "string" and (key:lower():find("skin") or key:lower():find("unlock") or key:lower():find("own")) then
+                            pcall(function()
+                                if typeof(val) == "boolean" then
+                                    v[key] = true
+                                elseif typeof(val) == "table" then
+                                    table.insert(val, Config.Skin.Name)
+                                end
+                            end)
+                        end
+                    end
+                end
+            end
+        end
+    end)
+
+    -- 4. Remote 스팸
+    pcall(function()
+        local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+            or ReplicatedStorage:FindFirstChild("RemoteEvents")
+            or ReplicatedStorage:FindFirstChild("Events")
+            or ReplicatedStorage
+
+        for _, r in pairs(remotes:GetDescendants()) do
+            if r:IsA("RemoteEvent") or r:IsA("RemoteFunction") then
+                local n = r.Name:lower()
+                if n:find("skin") or n:find("unlock") or n:find("equip") or n:find("cosmetic") or n:find("wrap") or n:find("finish") then
+                    pcall(function()
+                        r:FireServer(Config.Skin.Name)
+                        r:FireServer(true)
+                        r:FireServer("all")
+                        r:FireServer({Skin = Config.Skin.Name})
+                    end)
+                end
+            end
+        end
+    end)
 end
 
 -- ===================== SKYBOX =====================
@@ -379,17 +423,17 @@ end
 
 -- ===================== CYBERPUNK GUI =====================
 local SG = Instance.new("ScreenGui")
-SG.Name = "Zelbro"
+SG.Name = "ZelbroHyper"
 SG.ResetOnSpawn = false
 SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 pcall(function() SG.Parent = CoreGui end)
 if not SG.Parent then SG.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 
 local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 420, 0, 460)
-Main.Position = UDim2.new(0.5, -210, 0.5, -230)
-Main.BackgroundColor3 = Color3.fromRGB(8, 8, 14)
-Main.BackgroundTransparency = 0.15
+Main.Size = UDim2.new(0, 440, 0, 480)
+Main.Position = UDim2.new(0.5, -220, 0.5, -240)
+Main.BackgroundColor3 = Color3.fromRGB(6, 6, 12)
+Main.BackgroundTransparency = 0.12
 Main.BorderSizePixel = 0
 Main.Active = true
 Main.Draggable = true
@@ -400,11 +444,10 @@ mc.CornerRadius = UDim.new(0, 10)
 mc.Parent = Main
 
 local ms = Instance.new("UIStroke")
-ms.Color = Color3.fromRGB(0, 220, 255)
-ms.Thickness = 1.5
+ms.Color = Color3.fromRGB(0, 255, 255)
+ms.Thickness = 1.8
 ms.Parent = Main
 
--- 네온 그라데이션 느낌
 local accent = Instance.new("Frame")
 accent.Size = UDim2.new(1, 0, 0, 3)
 accent.BackgroundColor3 = Color3.fromRGB(180, 0, 255)
@@ -412,8 +455,8 @@ accent.BorderSizePixel = 0
 accent.Parent = Main
 
 local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1, 0, 0, 36)
-Header.BackgroundColor3 = Color3.fromRGB(12, 12, 20)
+Header.Size = UDim2.new(1, 0, 0, 38)
+Header.BackgroundColor3 = Color3.fromRGB(10, 10, 18)
 Header.BorderSizePixel = 0
 Header.Parent = Main
 
@@ -421,7 +464,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -20, 1, 0)
 Title.Position = UDim2.new(0, 14, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "ZELBRO  //  v8"
+Title.Text = "ZELBRO  //  HYPER v9"
 Title.TextColor3 = Color3.fromRGB(0, 255, 255)
 Title.TextSize = 16
 Title.Font = Enum.Font.Code
@@ -429,20 +472,20 @@ Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Header
 
 local TabBar = Instance.new("Frame")
-TabBar.Size = UDim2.new(1, 0, 0, 28)
-TabBar.Position = UDim2.new(0, 0, 0, 36)
-TabBar.BackgroundColor3 = Color3.fromRGB(10, 10, 18)
+TabBar.Size = UDim2.new(1, 0, 0, 30)
+TabBar.Position = UDim2.new(0, 0, 0, 38)
+TabBar.BackgroundColor3 = Color3.fromRGB(8, 8, 16)
 TabBar.BorderSizePixel = 0
 TabBar.Parent = Main
 
 local Content = Instance.new("ScrollingFrame")
-Content.Size = UDim2.new(1, -16, 1, -74)
-Content.Position = UDim2.new(0, 8, 0, 68)
+Content.Size = UDim2.new(1, -16, 1, -78)
+Content.Position = UDim2.new(0, 8, 0, 72)
 Content.BackgroundTransparency = 1
 Content.BorderSizePixel = 0
 Content.ScrollBarThickness = 3
 Content.ScrollBarImageColor3 = Color3.fromRGB(0, 220, 255)
-Content.CanvasSize = UDim2.new(0, 0, 0, 580)
+Content.CanvasSize = UDim2.new(0, 0, 0, 620)
 Content.Parent = Main
 
 local UIList = Instance.new("UIListLayout")
@@ -459,8 +502,8 @@ end
 
 local function toggle(name, default, cb)
     local f = Instance.new("Frame")
-    f.Size = UDim2.new(1, 0, 0, 28)
-    f.BackgroundColor3 = Color3.fromRGB(16, 16, 26)
+    f.Size = UDim2.new(1, 0, 0, 30)
+    f.BackgroundColor3 = Color3.fromRGB(14, 14, 24)
     f.BorderSizePixel = 0
     f.Parent = Content
     local c = Instance.new("UICorner")
@@ -468,19 +511,19 @@ local function toggle(name, default, cb)
     c.Parent = f
 
     local l = Instance.new("TextLabel")
-    l.Size = UDim2.new(1, -55, 1, 0)
+    l.Size = UDim2.new(1, -58, 1, 0)
     l.Position = UDim2.new(0, 12, 0, 0)
     l.BackgroundTransparency = 1
     l.Text = name
-    l.TextColor3 = Color3.fromRGB(200, 220, 255)
+    l.TextColor3 = Color3.fromRGB(210, 230, 255)
     l.TextSize = 13
     l.Font = Enum.Font.Code
     l.TextXAlignment = Enum.TextXAlignment.Left
     l.Parent = f
 
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, 42, 0, 20)
-    b.Position = UDim2.new(1, -50, 0.5, -10)
+    b.Size = UDim2.new(0, 44, 0, 22)
+    b.Position = UDim2.new(1, -52, 0.5, -11)
     b.BackgroundColor3 = default and Color3.fromRGB(0, 255, 200) or Color3.fromRGB(40, 40, 55)
     b.Text = default and "ON" or "OFF"
     b.TextColor3 = default and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(180, 180, 200)
@@ -503,8 +546,8 @@ end
 
 local function slider(name, min, max, default, cb)
     local f = Instance.new("Frame")
-    f.Size = UDim2.new(1, 0, 0, 42)
-    f.BackgroundColor3 = Color3.fromRGB(16, 16, 26)
+    f.Size = UDim2.new(1, 0, 0, 44)
+    f.BackgroundColor3 = Color3.fromRGB(14, 14, 24)
     f.BorderSizePixel = 0
     f.Parent = Content
     local c = Instance.new("UICorner")
@@ -516,7 +559,7 @@ local function slider(name, min, max, default, cb)
     l.Position = UDim2.new(0, 12, 0, 4)
     l.BackgroundTransparency = 1
     l.Text = name .. ": " .. tostring(default)
-    l.TextColor3 = Color3.fromRGB(200, 220, 255)
+    l.TextColor3 = Color3.fromRGB(210, 230, 255)
     l.TextSize = 12
     l.Font = Enum.Font.Code
     l.TextXAlignment = Enum.TextXAlignment.Left
@@ -557,8 +600,8 @@ end
 
 local function dropdown(name, options, default, cb)
     local f = Instance.new("Frame")
-    f.Size = UDim2.new(1, 0, 0, 28)
-    f.BackgroundColor3 = Color3.fromRGB(16, 16, 26)
+    f.Size = UDim2.new(1, 0, 0, 30)
+    f.BackgroundColor3 = Color3.fromRGB(14, 14, 24)
     f.BorderSizePixel = 0
     f.Parent = Content
     local c = Instance.new("UICorner")
@@ -570,7 +613,7 @@ local function dropdown(name, options, default, cb)
     l.Position = UDim2.new(0, 12, 0, 0)
     l.BackgroundTransparency = 1
     l.Text = name
-    l.TextColor3 = Color3.fromRGB(200, 220, 255)
+    l.TextColor3 = Color3.fromRGB(210, 230, 255)
     l.TextSize = 13
     l.Font = Enum.Font.Code
     l.TextXAlignment = Enum.TextXAlignment.Left
@@ -582,8 +625,8 @@ local function dropdown(name, options, default, cb)
     end
 
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0.5, 0, 0, 20)
-    b.Position = UDim2.new(0.42, 0, 0.5, -10)
+    b.Size = UDim2.new(0.5, 0, 0, 22)
+    b.Position = UDim2.new(0.42, 0, 0.5, -11)
     b.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
     b.Text = options[idx]
     b.TextColor3 = Color3.fromRGB(0, 255, 255)
@@ -604,7 +647,7 @@ end
 local function showAimbot()
     clear()
     for n, btn in pairs(tabBtns) do
-        btn.TextColor3 = n == "aimbot" and Color3.fromRGB(0, 255, 255) or Color3.fromRGB(120, 120, 150)
+        btn.TextColor3 = n == "aimbot" and Color3.fromRGB(0, 255, 255) or Color3.fromRGB(110, 110, 140)
     end
     toggle("Enabled", Config.Aimbot.Enabled, function(v)
         Config.Aimbot.Enabled = v
@@ -620,18 +663,18 @@ local function showAimbot()
     end)
     toggle("Wall Check", Config.Aimbot.WallCheck, function(v) Config.Aimbot.WallCheck = v end)
     dropdown("Target", {"Head", "Body", "Legs"}, Config.Aimbot.Target, function(v) Config.Aimbot.Target = v end)
-    slider("FOV Size", 40, 350, Config.Aimbot.FOV, function(v)
+    slider("FOV Size", 40, 400, Config.Aimbot.FOV, function(v)
         Config.Aimbot.FOV = v
         FOVCircle.Radius = v
     end)
-    slider("Smoothness", 0.15, 1, Config.Aimbot.Smooth, function(v) Config.Aimbot.Smooth = v end)
-    slider("Max Dist", 100, 800, Config.Aimbot.MaxDistance, function(v) Config.Aimbot.MaxDistance = v end)
+    slider("Smoothness", 0.12, 1, Config.Aimbot.Smooth, function(v) Config.Aimbot.Smooth = v end)
+    slider("Max Dist", 100, 900, Config.Aimbot.MaxDistance, function(v) Config.Aimbot.MaxDistance = v end)
 end
 
 local function showESP()
     clear()
     for n, btn in pairs(tabBtns) do
-        btn.TextColor3 = n == "esp" and Color3.fromRGB(0, 255, 255) or Color3.fromRGB(120, 120, 150)
+        btn.TextColor3 = n == "esp" and Color3.fromRGB(0, 255, 255) or Color3.fromRGB(110, 110, 140)
     end
     toggle("Enabled", Config.ESP.Enabled, function(v)
         Config.ESP.Enabled = v
@@ -654,30 +697,37 @@ end
 local function showSkin()
     clear()
     for n, btn in pairs(tabBtns) do
-        btn.TextColor3 = n == "skin" and Color3.fromRGB(0, 255, 255) or Color3.fromRGB(120, 120, 150)
+        btn.TextColor3 = n == "skin" and Color3.fromRGB(0, 255, 255) or Color3.fromRGB(110, 110, 140)
     end
-    toggle("Client Skin Spoof", Config.Skin.Enabled, function(v)
+    toggle("Skin Changer (Aggressive)", Config.Skin.Enabled, function(v)
         Config.Skin.Enabled = v
         if v then
-            applyClientSkin()
+            forceSkin()
             if not State.SkinConn then
                 State.SkinConn = LocalPlayer.CharacterAdded:Connect(function()
-                    task.wait(1)
-                    if Config.Skin.Enabled then applyClientSkin() end
+                    task.wait(1.2)
+                    if Config.Skin.Enabled then forceSkin() end
                 end)
             end
+            -- 주기적으로도 강제
+            task.spawn(function()
+                while Config.Skin.Enabled do
+                    forceSkin()
+                    task.wait(3)
+                end
+            end)
         end
     end)
-    dropdown("Skin Name", {"Gold", "Diamond", "Ruby", "Galaxy", "Neon", "Default"}, Config.Skin.Name, function(v)
+    dropdown("Skin Name", {"Gold", "Diamond", "Ruby", "Galaxy", "Neon", "Chrome", "Default"}, Config.Skin.Name, function(v)
         Config.Skin.Name = v
-        if Config.Skin.Enabled then applyClientSkin() end
+        if Config.Skin.Enabled then forceSkin() end
     end)
 end
 
 local function showWorld()
     clear()
     for n, btn in pairs(tabBtns) do
-        btn.TextColor3 = n == "world" and Color3.fromRGB(0, 255, 255) or Color3.fromRGB(120, 120, 150)
+        btn.TextColor3 = n == "world" and Color3.fromRGB(0, 255, 255) or Color3.fromRGB(110, 110, 140)
     end
     toggle("Skybox", Config.World.Skybox, function(v)
         Config.World.Skybox = v
@@ -688,13 +738,13 @@ end
 local function showSettings()
     clear()
     for n, btn in pairs(tabBtns) do
-        btn.TextColor3 = n == "settings" and Color3.fromRGB(0, 255, 255) or Color3.fromRGB(120, 120, 150)
+        btn.TextColor3 = n == "settings" and Color3.fromRGB(0, 255, 255) or Color3.fromRGB(110, 110, 140)
     end
     local info = Instance.new("TextLabel")
-    info.Size = UDim2.new(1, 0, 0, 70)
+    info.Size = UDim2.new(1, 0, 0, 80)
     info.BackgroundTransparency = 1
-    info.Text = "RightShift = Menu\nAimbot = Toggle\nSkin = Client only\nCyberpunk UI v8"
-    info.TextColor3 = Color3.fromRGB(150, 170, 200)
+    info.Text = "RightShift = Menu\nAimbot = Toggle\nSkin = Aggressive Client + Remote + getgc\nHyper v9"
+    info.TextColor3 = Color3.fromRGB(150, 180, 220)
     info.TextSize = 12
     info.Font = Enum.Font.Code
     info.TextXAlignment = Enum.TextXAlignment.Left
@@ -705,16 +755,16 @@ local names = {"aimbot", "esp", "skin", "world", "settings"}
 local x = 8
 for _, n in ipairs(names) do
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, 72, 1, 0)
+    b.Size = UDim2.new(0, 76, 1, 0)
     b.Position = UDim2.new(0, x, 0, 0)
     b.BackgroundTransparency = 1
     b.Text = n
-    b.TextColor3 = Color3.fromRGB(120, 120, 150)
+    b.TextColor3 = Color3.fromRGB(110, 110, 140)
     b.TextSize = 12
     b.Font = Enum.Font.Code
     b.Parent = TabBar
     tabBtns[n] = b
-    x = x + 78
+    x = x + 82
     b.MouseButton1Click:Connect(function()
         if n == "aimbot" then showAimbot()
         elseif n == "esp" then showESP()
@@ -751,10 +801,10 @@ for _, plr in ipairs(Players:GetPlayers()) do
 end
 Players.PlayerAdded:Connect(function(plr)
     plr.CharacterAdded:Connect(function()
-        task.wait(0.4)
+        task.wait(0.5)
         if Config.ESP.Enabled then createESP(plr) end
     end)
 end)
 Players.PlayerRemoving:Connect(removeESP)
 
-print("[Zelbro] v8 Cyberpunk loaded | RightShift = Menu")
+print("[Zelbro] HYPER v9 loaded | RightShift = Menu")
